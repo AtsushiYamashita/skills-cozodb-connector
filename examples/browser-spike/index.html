@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#4A90A4" />
+    <title>CozoDB WASM Spike</title>
+    <link rel="manifest" href="manifest.json" />
+    <style>
+      :root {
+        --primary: #4a90a4;
+        --primary-dark: #357a8f;
+        --bg: #1a1a2e;
+        --surface: #16213e;
+        --surface-light: #1f3460;
+        --text: #e7e7e7;
+        --text-muted: #9ca3af;
+        --success: #10b981;
+        --error: #ef4444;
+        --warning: #f59e0b;
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "Segoe UI", system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100vh;
+        padding: 20px;
+      }
+
+      .container {
+        max-width: 900px;
+        margin: 0 auto;
+      }
+
+      header {
+        text-align: center;
+        margin-bottom: 30px;
+      }
+
+      h1 {
+        font-size: 2rem;
+        color: var(--primary);
+        margin-bottom: 8px;
+      }
+
+      .subtitle {
+        color: var(--text-muted);
+        font-size: 0.9rem;
+      }
+
+      .status-bar {
+        display: flex;
+        gap: 12px;
+        justify-content: center;
+        align-items: center;
+        margin: 20px 0;
+        padding: 12px;
+        background: var(--surface);
+        border-radius: 8px;
+      }
+
+      .status-indicator {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--text-muted);
+      }
+
+      .status-indicator.loading {
+        background: var(--warning);
+        animation: pulse 1s infinite;
+      }
+
+      .status-indicator.ready {
+        background: var(--success);
+      }
+
+      .status-indicator.error {
+        background: var(--error);
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.5;
+        }
+      }
+
+      .card {
+        background: var(--surface);
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 20px;
+      }
+
+      .card-title {
+        font-size: 1.1rem;
+        margin-bottom: 15px;
+        color: var(--primary);
+      }
+
+      .query-input {
+        width: 100%;
+        min-height: 120px;
+        background: var(--surface-light);
+        border: 1px solid var(--primary-dark);
+        border-radius: 8px;
+        padding: 15px;
+        color: var(--text);
+        font-family: "Consolas", "Monaco", monospace;
+        font-size: 0.9rem;
+        resize: vertical;
+      }
+
+      .query-input:focus {
+        outline: none;
+        border-color: var(--primary);
+      }
+
+      .btn-row {
+        display: flex;
+        gap: 10px;
+        margin-top: 15px;
+        flex-wrap: wrap;
+      }
+
+      .btn {
+        padding: 10px 20px;
+        border: none;
+        border-radius: 6px;
+        font-size: 0.9rem;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+
+      .btn-primary {
+        background: var(--primary);
+        color: white;
+      }
+
+      .btn-primary:hover {
+        background: var(--primary-dark);
+      }
+
+      .btn-secondary {
+        background: var(--surface-light);
+        color: var(--text);
+        border: 1px solid var(--primary-dark);
+      }
+
+      .btn-secondary:hover {
+        background: var(--primary-dark);
+      }
+
+      .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .results {
+        background: var(--surface-light);
+        border-radius: 8px;
+        padding: 15px;
+        font-family: "Consolas", "Monaco", monospace;
+        font-size: 0.85rem;
+        white-space: pre-wrap;
+        word-break: break-word;
+        max-height: 400px;
+        overflow-y: auto;
+      }
+
+      .results.error {
+        color: var(--error);
+      }
+
+      .results.success {
+        color: var(--success);
+      }
+
+      .examples-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 10px;
+      }
+
+      .example-btn {
+        padding: 12px;
+        font-size: 0.85rem;
+        text-align: left;
+      }
+
+      .log-entry {
+        padding: 8px 0;
+        border-bottom: 1px solid var(--surface);
+      }
+
+      .log-entry:last-child {
+        border-bottom: none;
+      }
+
+      .log-time {
+        color: var(--text-muted);
+        font-size: 0.8rem;
+      }
+
+      footer {
+        text-align: center;
+        padding: 20px;
+        color: var(--text-muted);
+        font-size: 0.8rem;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>🧠 CozoDB WASM Spike</h1>
+        <p class="subtitle">Browser-based Datalog Database Testing</p>
+      </header>
+
+      <div class="status-bar">
+        <div class="status-indicator loading" id="statusIndicator"></div>
+        <span id="statusText">Loading CozoDB WASM...</span>
+      </div>
+
+      <div class="card">
+        <h2 class="card-title">📝 Query Editor</h2>
+        <textarea
+          class="query-input"
+          id="queryInput"
+          placeholder="Enter your Datalog query here..."
+        >
+?[a, b] <- [[1, 'hello'], [2, 'world']]</textarea
+        >
+        <div class="btn-row">
+          <button class="btn btn-primary" id="runBtn" disabled>
+            ▶ Run Query
+          </button>
+          <button class="btn btn-secondary" id="clearBtn">Clear</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 class="card-title">📚 Example Queries</h2>
+        <div class="examples-grid">
+          <button
+            class="btn btn-secondary example-btn"
+            data-query="?[a, b] <- [[1, 'hello'], [2, 'world']]"
+          >
+            Basic: Inline Data
+          </button>
+          <button
+            class="btn btn-secondary example-btn"
+            data-query=":create notes { id: Int => title: String, content: String }"
+          >
+            Create: Relation
+          </button>
+          <button
+            class="btn btn-secondary example-btn"
+            data-query="?[id, title, content] <- [[1, 'First Note', 'Hello CozoDB!']]
+:put notes {id => title, content}"
+          >
+            Insert: Put Data
+          </button>
+          <button
+            class="btn btn-secondary example-btn"
+            data-query="?[id, title, content] := *notes{id, title, content}"
+          >
+            Query: All Notes
+          </button>
+          <button
+            class="btn btn-secondary example-btn"
+            data-query="::relations"
+          >
+            System: List Relations
+          </button>
+          <button
+            class="btn btn-secondary example-btn"
+            data-query="::columns notes"
+          >
+            System: Relation Columns
+          </button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 class="card-title">📊 Results</h2>
+        <div class="results" id="results">Results will appear here...</div>
+      </div>
+
+      <div class="card">
+        <h2 class="card-title">📋 Execution Log</h2>
+        <div class="results" id="log"></div>
+      </div>
+
+      <footer>
+        CozoDB WASM Spike • PWA Test Environment<br />
+        Data is stored in memory (not persistent across page reloads)
+      </footer>
+    </div>
+
+    <script type="module">
+      // Log helper
+      const logEl = document.getElementById("log");
+      function log(message, type = "info") {
+        const time = new Date().toLocaleTimeString();
+        const color =
+          type === "error"
+            ? "var(--error)"
+            : type === "success"
+              ? "var(--success)"
+              : "var(--text)";
+        logEl.innerHTML =
+          `<div class="log-entry" style="color: ${color}">
+                <span class="log-time">[${time}]</span> ${message}
+            </div>` + logEl.innerHTML;
+      }
+
+      // UI Elements
+      const statusIndicator = document.getElementById("statusIndicator");
+      const statusText = document.getElementById("statusText");
+      const queryInput = document.getElementById("queryInput");
+      const runBtn = document.getElementById("runBtn");
+      const clearBtn = document.getElementById("clearBtn");
+      const resultsEl = document.getElementById("results");
+      const exampleBtns = document.querySelectorAll(".example-btn");
+
+      let db = null;
+
+      // Load CozoDB WASM
+      async function initCozoDB() {
+        try {
+          log("Loading CozoDB WASM module...");
+
+          // Dynamic import of CozoDB WASM
+          // Option 1: From local build
+          // const { CozoDb } = await import('./cozo_wasm.js');
+
+          // Option 2: From CDN (esm.sh / unpkg / jsdelivr)
+          const cozo = await import("https://esm.sh/cozo-lib-wasm@0.7.6");
+
+          log("Initializing WASM...");
+          await cozo.default(); // Initialize WASM
+
+          log("Creating in-memory database...");
+          db = cozo.CozoDb.new();
+
+          statusIndicator.className = "status-indicator ready";
+          statusText.textContent = "CozoDB Ready (In-Memory)";
+          runBtn.disabled = false;
+
+          log("CozoDB WASM initialized successfully!", "success");
+        } catch (error) {
+          statusIndicator.className = "status-indicator error";
+          statusText.textContent = "Failed to load CozoDB";
+          log(`Error: ${error.message}`, "error");
+          console.error("CozoDB init error:", error);
+
+          resultsEl.textContent = `Failed to initialize CozoDB WASM.\n\nError: ${error.message}\n\nPossible issues:\n1. CORS policy preventing WASM load\n2. Network connectivity issues\n3. Browser doesn't support WASM\n\nSee console for details.`;
+          resultsEl.className = "results error";
+        }
+      }
+
+      // Run query
+      async function runQuery() {
+        const query = queryInput.value.trim();
+        if (!query) return;
+
+        if (!db) {
+          resultsEl.textContent = "Database not initialized";
+          resultsEl.className = "results error";
+          return;
+        }
+
+        log(`Running: ${query.substring(0, 50)}...`);
+
+        try {
+          const startTime = performance.now();
+          const result = db.run(query);
+          const elapsed = (performance.now() - startTime).toFixed(2);
+
+          const parsed = JSON.parse(result);
+
+          if (parsed.ok) {
+            resultsEl.className = "results success";
+            resultsEl.textContent =
+              `✓ Query completed in ${elapsed}ms\n\n` +
+              `Headers: ${JSON.stringify(parsed.headers)}\n\n` +
+              `Rows (${parsed.rows?.length || 0}):\n` +
+              JSON.stringify(parsed.rows, null, 2);
+            log(
+              `Query success: ${parsed.rows?.length || 0} rows in ${elapsed}ms`,
+              "success",
+            );
+          } else {
+            throw new Error(parsed.message || "Unknown error");
+          }
+        } catch (error) {
+          resultsEl.className = "results error";
+          resultsEl.textContent = `Error: ${error.message}`;
+          log(`Query error: ${error.message}`, "error");
+        }
+      }
+
+      // Event listeners
+      runBtn.addEventListener("click", runQuery);
+
+      clearBtn.addEventListener("click", () => {
+        queryInput.value = "";
+        resultsEl.textContent = "Results will appear here...";
+        resultsEl.className = "results";
+      });
+
+      queryInput.addEventListener("keydown", (e) => {
+        if (e.ctrlKey && e.key === "Enter") {
+          runQuery();
+        }
+      });
+
+      exampleBtns.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          queryInput.value = btn.dataset.query;
+        });
+      });
+
+      // Initialize
+      initCozoDB();
+    </script>
+  </body>
+</html>
