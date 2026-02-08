@@ -1,0 +1,19 @@
+{
+   "[markdown]": {
+      "editor.defaultFormatter": "yzhang.markdown-all-in-one"
+   },
+   //////////////////////////////
+   // # Agemnt mode(Experimental)
+   // - サブエージェント（実験的） | Gemini CLI
+   //  - https://geminicli.com/docs/core/subagents/#codebase-investigator
+   "experimental": {
+      "enableAgents": true,
+      //////////////////////////////
+      // # コードベース調査員
+      "codebaseInvestigatorSettings": {
+         "enabled": true,
+         "maxNumTurns": 20,
+         "model": "gemini-2.5-pro"
+      }
+   }
+}
