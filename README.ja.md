@@ -1,321 +1,86 @@
 # CozoDB Connector Skill
 
-AI AgentがCozoDBを統合するためのSkill - Node.jsとブラウザPWA環境でのシームレスなデータベース接続を実現
+CozoDB統合のためのAI Agentスキル - グラフクエリ機能を持つDatalogデータベース
 
-[English Documentation](README.md)
-
----
-
-## このSkillの使い方
-
-本リポジトリは**AI Agent Skill**です。AIエージェントのCozoDBデータベース操作能力を拡張するモジュラーパッケージです。
-
-### インストール方法
-
-#### 方法1: 直接クローン（開発時推奨）
-
-AIエージェントのskillsディレクトリに直接クローン:
-
-```bash
-# Gemini CLI / Claude Desktop の場合
-cd ~/.gemini/antigravity/skills  # またはエージェントのskillsパス
-git clone https://github.com/your-org/skills-cozodb-connector.git cozodb
-```
-
-エージェントは `SKILL.md` を通じてスキルを認識します。
-
-#### 方法2: シンボリックリンク（複数プロジェクト推奨）
-
-スキルを共有場所に置き、各プロジェクトにシンボリックリンク:
-
-```bash
-# 共有場所にクローン
-cd ~/packages/skills
-git clone https://github.com/your-org/skills-cozodb-connector.git
-
-# 各プロジェクトのskillsディレクトリにリンク
-cd ~/.gemini/antigravity/skills
-ln -s ~/packages/skills/skills-cozodb-connector cozodb
-
-# Windows（管理者権限のPowerShell）
-New-Item -ItemType SymbolicLink -Path "cozodb" -Target "C:\packages\skills\skills-cozodb-connector"
-```
-
-**メリット**: 単一ソース、全プロジェクトで簡単に更新
-**デメリット**: シンボリックリンク管理、Windowsでのパス問題
-
-#### 方法3: Git サブモジュール（チーム推奨）
-
-プロジェクトにサブモジュールとして追加:
-
-```bash
-cd your-project
-git submodule add https://github.com/your-org/skills-cozodb-connector.git .agent/skills/cozodb
-```
-
-**メリット**: バージョン固定、再現可能なビルド
-**デメリット**: サブモジュールの複雑さ
-
-#### 方法4: npm パッケージ（実験的）
-
-```bash
-npm install @your-org/cozodb-skill --save-dev
-# node_modules/@your-org/cozodb-skill を skills にシンボリックリンク
-```
-
-### ディレクトリ構成
-
-インストール後、エージェントは以下を認識:
-
-```
-skills/
-└── cozodb/
-    ├── SKILL.md           # エントリーポイント（エージェントが最初に読む）
-    ├── references/        # オンデマンドでロード
-    │   ├── datalog-syntax.md
-    │   ├── storage-engines.md
-    │   └── ...
-    └── scripts/           # 実行可能ヘルパー
-        ├── cozo-wrapper.js
-        ├── memory-monitor.js
-        └── sync-helper.js
-```
-
-### スキルのトリガー
-
-以下のような質問でスキルが発動:
-
-- 「Node.jsプロジェクトでCozoDBをセットアップして」
-- 「オフラインデータベース付きのPWAを作って」
-- 「〜を検索するDatalogクエリを書いて」
-- 「CozoDB WASMの使い方を教えて」
-
-### プロジェクト向けカスタマイズ
-
-1. **このリポジトリをフォーク**してプロジェクト固有の変更
-2. **SKILL.mdを編集**してスキーマ定義を追加
-3. **references/**にドメイン固有のDatalogパターンを追加
-
----
-
-## 完全セットアップガイド (Skill + MCPサーバー)
-
-AI AgentでCozoDBを完全に活用するには、**Skill**（知識）と**MCPサーバー**（接続）の両方をインストールします：
-
-### Step 1: Skillをインストール
-
-```bash
-# エージェントのskillsディレクトリにクローン
-cd ~/.gemini/antigravity/skills  # またはskillsパス
-git clone https://github.com/AtsushiYamashita/skills-cozodb-connector.git cozodb
-```
-
-### Step 2: MCPサーバーをインストール
-
-```bash
-# クローンしてビルド
-git clone https://github.com/AtsushiYamashita/mcp-cozodb.git
-cd mcp-cozodb
-npm install
-npm run build
-```
-
-### Step 3: AIエージェントを設定
-
-**Claude Desktop** (`claude_desktop_config.json`):
-
-```json
-{
-  "mcpServers": {
-    "cozodb": {
-      "command": "node",
-      "args": ["/path/to/mcp-cozodb/dist/index.js"],
-      "env": {
-        "COZO_ENGINE": "sqlite",
-        "COZO_PATH": "./my-database.db"
-      }
-    }
-  }
-}
-```
-
-**Gemini CLI** (MCP設定):
-
-```json
-{
-  "cozodb": {
-    "command": "node",
-    "args": ["D:/project/mcp-cozodb/dist/index.js"],
-    "env": {
-      "COZO_ENGINE": "mem"
-    }
-  }
-}
-```
-
-### Step 4: 動作確認
-
-AIエージェントに質問:
-
-> 「CozoDBのリレーション一覧を表示して」
-
-エージェントは以下を実行:
-
-1. SkillからDatalog知識を読み込み
-2. MCPサーバーの `cozo_list_relations` ツールを使用
-
-### アーキテクチャ
-
-```
-┌─────────────────────────────────────────────────────────┐
-│  AI Agent (Claude / Gemini)                             │
-├─────────────────────────┬───────────────────────────────┤
-│  Skill (知識)           │  MCPサーバー (接続)           │
-│  ├─ SKILL.md            │  ├─ cozo_query               │
-│  ├─ references/         │  ├─ cozo_list_relations      │
-│  │  ├─ datalog-syntax   │  ├─ cozo_describe_relation   │
-│  │  └─ storage-engines  │  ├─ cozo_create_relation     │
-│  └─ scripts/            │  ├─ cozo_put                 │
-│                         │  ├─ cozo_remove              │
-│                         │  └─ cozo_drop_relation       │
-└─────────────────────────┴───────────────────────────────┘
-                          │
-                          ▼
-                   ┌──────────────┐
-                   │   CozoDB     │
-                   │ (組み込み)   │
-                   └──────────────┘
-```
-
----
-
-## 概要
-
-CozoDBはグラフクエリ機能を持つ組み込みDatalogデータベースです。本Skillは以下を提供します：
-
-- **Node.js統合** - `cozo-node`（Memory/SQLite/RocksDBバックエンド）
-- **ブラウザPWA統合** - `cozo-lib-wasm`（WebAssembly）
-- **関数型パターン** - 純粋関数と依存性注入
-- **マルチテナント対応** - ユーザー単位のデータベースインスタンス分離
-- **i18n対応エラーハンドリング** - 構造化エラーコード
-
-## スコープ
-
-### ⚠️ 重要: WASM揮発性
-
-> **Browser WASMのデータは揮発性です。ページ更新でデータが消失します。**
-> 必ず `sync-helper.js` を使用してサーバーに同期してください。
-
-### ✅ できること
-
-- 小〜中規模アプリの組み込みDB（シングルプロセス）
-- グラフクエリと再帰的Datalog操作
-- オフラインファーストPWAのローカルデータ保存
-- マルチテナント分離（ユーザー単位の別DB）
-- 全文検索とHNSWベクトルインデックス
-- **メモリ使用量監視とサーバーオフロード** (NEW)
-- **双方向データ同期** (NEW)
-
-### ❌ できないこと
-
-- 複数サーバー間の分散トランザクション
-- クライアント間リアルタイム同期（WebSocket等が別途必要）
-- SQLクエリ（CozoDBはDatalogインターフェースのみ。SQLiteバックエンドでもSQL不可）
-
-### ⚠️ 向かないケース
-
-- 同時書き込みが多いワークロード → PostgreSQL/MySQLを使用
-- 数GB以上のデータ → 専用DBサーバーを使用
-- ネットワーク境界を越えたACIDが必要な場合
-- Datalog未経験で素早い導入が必要なチーム
+[English](README.md) | [セットアップガイド](docs/SETUP.ja.md)
 
 ## クイックスタート
 
-### Node.js
-
 ```bash
-npm install cozo-node
+# 1. Skillをインストール
+cd ~/.gemini/antigravity/skills
+git clone https://github.com/AtsushiYamashita/skills-cozodb-connector.git cozodb
+
+# 2. MCPサーバーをインストール
+git clone https://github.com/AtsushiYamashita/mcp-cozodb.git
+cd mcp-cozodb && npm install && npm run build
+
+# 3. エージェント設定 (docs/SETUP.ja.md参照)
 ```
+
+## 提供内容
+
+| コンポーネント                  | 目的                                      |
+| ------------------------------- | ----------------------------------------- |
+| **Skill** (`SKILL.md`)          | Datalog構文、パターン、ベストプラクティス |
+| **MCPサーバー** (`mcp-cozodb/`) | 7つのDBツール (query, CRUD, schema)       |
+| **スクリプト**                  | メモリ監視、同期ヘルパー、エラーハンドラ  |
+
+## スコープ
+
+### ✅ できること
+
+- 小〜中規模アプリの組み込みDB
+- グラフクエリ、再帰的Datalog
+- オフラインPWA、マルチテナント分離
+- 全文検索、ベクトルインデックス
+
+### ⚠️ 制限事項
+
+- **WASMデータは揮発性** - `sync-helper.js`を使用
+- Datalogのみ（SQLなし）
+- シングルプロセスのみ
+
+### ❌ 不向き
+
+- 高並行書き込み → PostgreSQL使用
+- 大規模データ (>GB) → 専用DB使用
+
+## コード例
+
+### Node.js
 
 ```javascript
 const { CozoDb } = require("cozo-node");
-
-// インメモリ（デフォルト）
-const db = new CozoDb();
-
-// SQLite（永続化）
 const db = new CozoDb("sqlite", "./data.db");
-
-// クエリ実行
 const result = await db.run(`?[x, y] <- [[1, 'hello'], [2, 'world']]`);
-console.log(result.rows); // [[1, 'hello'], [2, 'world']]
 ```
 
-### ブラウザ (PWA)
+### ブラウザ (WASM)
 
 ```javascript
 import init, { CozoDb } from "cozo-lib-wasm";
-
 await init();
 const db = CozoDb.new();
-
-// 重要: WASMでは第2引数が必須
-const result = db.run(`?[x] <- [[1], [2], [3]]`, "{}");
-console.log(JSON.parse(result));
+db.run(`?[x] <- [[1], [2]]`, "{}"); // 注: 第2引数必須
 ```
 
 ## ドキュメント
 
-| ファイル                                                             | 説明                      |
-| -------------------------------------------------------------------- | ------------------------- |
-| [SKILL.md](SKILL.md)                                                 | AI Agent向けメイン説明書  |
-| [references/nodejs-setup.md](references/nodejs-setup.md)             | Node.jsセットアップ       |
-| [references/browser-wasm-setup.md](references/browser-wasm-setup.md) | ブラウザWASMセットアップ  |
-| [references/datalog-syntax.md](references/datalog-syntax.md)         | Datalogクエリリファレンス |
-| [references/storage-engines.md](references/storage-engines.md)       | バックエンド比較ガイド    |
-| [references/edge-cases.md](references/edge-cases.md)                 | 既知の問題と回避策        |
-
-## サンプル
-
-### テストランナー
-
-```bash
-# Node.js（Memoryバックエンド）
-node examples/nodejs-spike/test-runner.js --backend=memory
-
-# Node.js（SQLiteバックエンド）
-node examples/nodejs-spike/test-runner.js --backend=sqlite
-
-# ブラウザPWA
-npx serve examples/browser-spike -l 3457
-# http://localhost:3457/test-runner.html を開く
-```
-
-### ユーザージャーニー例
-
-| ジャーニー          | コマンド                                          | 説明                   |
-| ------------------- | ------------------------------------------------- | ---------------------- |
-| 1. Node.js単独      | `node examples/journeys/journey1-node-only.js`    | REST APIパターン       |
-| 2. PWA単独          | `journey2-pwa-only.html`をサーブ                  | オフラインノートアプリ |
-| 3. マルチテナント   | `node examples/journeys/journey3-multi-tenant.js` | ユーザー単位DB         |
-| 4. ハイブリッド同期 | `node examples/journeys/journey4-sync-server.js`  | PWA+Node同期           |
+| ファイル                                           | 説明                                 |
+| -------------------------------------------------- | ------------------------------------ |
+| [SKILL.md](SKILL.md)                               | AIエージェント向けエントリーポイント |
+| [docs/SETUP.ja.md](docs/SETUP.ja.md)               | 完全インストールガイド               |
+| [references/](references/)                         | Datalog構文、ストレージエンジン      |
+| [docs/SECURITY_REVIEW.md](docs/SECURITY_REVIEW.md) | セキュリティガイドライン             |
 
 ## スクリプト
 
-| スクリプト                  | 用途                                                     |
-| --------------------------- | -------------------------------------------------------- |
-| `scripts/cozo-errors.js`    | i18nエラーコード + セキュリティ検証                      |
-| `scripts/cozo-wrapper.js`   | 関数型ラッパー + マルチテナント管理                      |
-| `scripts/memory-monitor.js` | メモリ監視 + オーバーフロー検知 + オフロードコールバック |
-| `scripts/sync-helper.js`    | 双方向同期 + 自動同期（blur/beforeunload対応）           |
-
-## セキュリティ
-
-[docs/SECURITY_REVIEW.md](docs/SECURITY_REVIEW.md)を参照：
-
-- クエリインジェクション対策（パラメータ化クエリを使用）
-- プロトタイプ汚染対策
-- DoS対策（クエリ長制限）
+| スクリプト                  | 目的                            |
+| --------------------------- | ------------------------------- |
+| `scripts/cozo-wrapper.js`   | 関数型ラッパー + マルチテナント |
+| `scripts/memory-monitor.js` | WASMメモリ追跡                  |
+| `scripts/sync-helper.js`    | 双方向同期                      |
 
 ## ライセンス
 
