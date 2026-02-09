@@ -129,7 +129,7 @@ CozoDB is an embedded Datalog database with graph query capabilities. This skill
 
 - Distributed transactions across multiple servers
 - Real-time sync between clients (requires WebSocket etc.)
-- Direct SQL queries (Datalog only)
+- Direct SQL queries (Datalog only; SQLite backend doesn't expose SQL)
 
 ### ⚠️ Not Suitable For
 
