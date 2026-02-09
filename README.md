@@ -14,6 +14,30 @@ CozoDB is an embedded Datalog database with graph query capabilities. This skill
 - **Multi-tenant support** with user-specific database instances
 - **i18n-ready error handling** with structured error codes
 
+## Scope
+
+### ✅ Can Do
+
+- Embedded database for small-to-medium apps (single process)
+- Graph queries and recursive Datalog operations
+- Offline-first PWA with local data storage
+- Multi-tenant isolation (separate DB per user)
+- Full-text search and HNSW vector indexes
+
+### ❌ Cannot Do
+
+- Distributed transactions across multiple servers
+- Real-time sync between clients (requires custom implementation)
+- Direct SQL queries (Datalog only)
+- Browser data larger than available memory (WASM limitation)
+
+### ⚠️ Not Suitable For
+
+- High-concurrency write-heavy workloads (use PostgreSQL/MySQL)
+- Data larger than a few GB (use dedicated database servers)
+- Applications requiring ACID across network boundaries
+- Teams unfamiliar with Datalog who need quick adoption
+
 ## Quick Start
 
 ### Node.js
