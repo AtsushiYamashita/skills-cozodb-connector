@@ -1,3 +1,5 @@
 docs/temp
 .agent/rules/*
 .env
+node_modules
+mcp-cozodb

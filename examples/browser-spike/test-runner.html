@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#10b981">
+    <title>CozoDB PWA Test Runner</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --surface: #1e293b;
+            --text: #e2e8f0;
+            --success: #10b981;
+            --error: #ef4444;
+            --warning: #f59e0b;
+            --primary: #3b82f6;
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container { max-width: 800px; margin: 0 auto; }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+        }
+        
+        .status-bar {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            justify-content: center;
+            padding: 15px;
+            background: var(--surface);
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--warning);
+            animation: pulse 1s infinite;
+        }
+        
+        .status-dot.ready { background: var(--success); animation: none; }
+        .status-dot.error { background: var(--error); animation: none; }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            background: var(--primary);
+            color: white;
+            transition: opacity 0.2s;
+        }
+        
+        .btn:hover { opacity: 0.9; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        .test-list {
+            background: var(--surface);
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 20px;
+        }
+        
+        .test-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .test-item:last-child { border-bottom: none; }
+        
+        .test-icon { font-size: 1.2rem; }
+        .test-icon.pass { color: var(--success); }
+        .test-icon.fail { color: var(--error); }
+        .test-icon.pending { color: var(--warning); }
+        
+        .test-name { flex: 1; }
+        .test-error { color: var(--error); font-size: 0.85rem; margin-top: 5px; }
+        
+        .summary {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        .summary-item {
+            background: var(--surface);
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        
+        .summary-value { font-size: 2rem; font-weight: bold; }
+        .summary-label { font-size: 0.85rem; opacity: 0.7; }
+        
+        .summary-item.pass .summary-value { color: var(--success); }
+        .summary-item.fail .summary-value { color: var(--error); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 CozoDB PWA Test Runner</h1>
+        
+        <div class="status-bar">
+            <div class="status-dot" id="statusDot"></div>
+            <span id="statusText">Initializing...</span>
+            <button class="btn" id="runBtn" disabled>Run Tests</button>
+        </div>
+        
+        <div class="summary" id="summary" style="display: none;">
+            <div class="summary-item">
+                <div class="summary-value" id="totalCount">0</div>
+                <div class="summary-label">Total</div>
+            </div>
+            <div class="summary-item pass">
+                <div class="summary-value" id="passCount">0</div>
+                <div class="summary-label">Passed</div>
+            </div>
+            <div class="summary-item fail">
+                <div class="summary-value" id="failCount">0</div>
+                <div class="summary-label">Failed</div>
+            </div>
+        </div>
+        
+        <div class="test-list" id="testList"></div>
+    </div>
+
+    <script type="module">
+        // DOM elements
+        const statusDot = document.getElementById('statusDot');
+        const statusText = document.getElementById('statusText');
+        const runBtn = document.getElementById('runBtn');
+        const testList = document.getElementById('testList');
+        const summary = document.getElementById('summary');
+        
+        let db = null;
+        const results = { passed: 0, failed: 0, tests: [] };
+        
+        // Initialize CozoDB WASM
+        async function init() {
+            try {
+                statusText.textContent = 'Loading CozoDB WASM...';
+                
+                const cozo = await import('https://esm.sh/cozo-lib-wasm@0.7.6');
+                await cozo.default();
+                db = cozo.CozoDb.new();
+                
+                statusDot.classList.add('ready');
+                statusText.textContent = 'CozoDB Ready (In-Memory)';
+                runBtn.disabled = false;
+                
+            } catch (e) {
+                statusDot.classList.add('error');
+                statusText.textContent = `Load Error: ${e.message}`;
+                addTest('WASM Initialization', false, e.message);
+            }
+        }
+        
+        // Add test result to UI
+        function addTest(name, passed, error = null) {
+            const icon = passed ? '✅' : '❌';
+            const iconClass = passed ? 'pass' : 'fail';
+            
+            const item = document.createElement('div');
+            item.className = 'test-item';
+            item.innerHTML = `
+                <span class="test-icon ${iconClass}">${icon}</span>
+                <span class="test-name">${name}</span>
+                ${error ? `<div class="test-error">${error}</div>` : ''}
+            `;
+            testList.appendChild(item);
+            
+            results.tests.push({ name, passed, error });
+            if (passed) results.passed++;
+            else results.failed++;
+            
+            updateSummary();
+        }
+        
+        // Update summary display
+        function updateSummary() {
+            document.getElementById('totalCount').textContent = results.passed + results.failed;
+            document.getElementById('passCount').textContent = results.passed;
+            document.getElementById('failCount').textContent = results.failed;
+            summary.style.display = 'grid';
+        }
+        
+        // Run query helper (handles WASM string result)
+        // WASM API requires second parameter for params (as JSON string)
+        function runQuery(query, params = {}) {
+            try {
+                const paramsJson = JSON.stringify(params);
+                const result = db.run(query, paramsJson);
+                const parsed = JSON.parse(result);
+                if (!parsed.ok) {
+                    throw new Error(parsed.message || 'Query failed');
+                }
+                return parsed;
+            } catch (e) {
+                throw e;
+            }
+        }
+        
+        // Test suite
+        async function runTests() {
+            testList.innerHTML = '';
+            results.passed = 0;
+            results.failed = 0;
+            results.tests = [];
+            
+            runBtn.disabled = true;
+            statusText.textContent = 'Running tests...';
+            
+            // Test 1: Create relation
+            try {
+                runQuery(`:create pwa_test { id: Int => name: String }`);
+                addTest('Create relation', true);
+            } catch (e) {
+                addTest('Create relation', false, e.message);
+            }
+            
+            // Test 2: Insert data
+            try {
+                runQuery(`?[id, name] <- [[1, 'Test1'], [2, 'Test2']] :put pwa_test {id => name}`);
+                addTest('Insert data', true);
+            } catch (e) {
+                addTest('Insert data', false, e.message);
+            }
+            
+            // Test 3: Query data
+            try {
+                const result = runQuery(`?[id, name] := *pwa_test{id, name}`);
+                if (result.rows?.length === 2) {
+                    addTest('Query data', true);
+                } else {
+                    addTest('Query data', false, `Expected 2 rows, got ${result.rows?.length}`);
+                }
+            } catch (e) {
+                addTest('Query data', false, e.message);
+            }
+            
+            // Test 4: Filter query
+            try {
+                const result = runQuery(`?[name] := *pwa_test{name, id}, id == 1`);
+                if (result.rows?.[0]?.[0] === 'Test1') {
+                    addTest('Filter query', true);
+                } else {
+                    addTest('Filter query', false, 'Unexpected result');
+                }
+            } catch (e) {
+                addTest('Filter query', false, e.message);
+            }
+            
+            // Test 5: Update data
+            try {
+                runQuery(`?[id, name] <- [[1, 'Updated']] :put pwa_test {id => name}`);
+                const result = runQuery(`?[name] := *pwa_test{name, id}, id == 1`);
+                if (result.rows?.[0]?.[0] === 'Updated') {
+                    addTest('Update data', true);
+                } else {
+                    addTest('Update data', false, 'Update did not apply');
+                }
+            } catch (e) {
+                addTest('Update data', false, e.message);
+            }
+            
+            // Test 6: Delete data
+            try {
+                runQuery(`?[id, name] <- [[2, 'Test2']] :rm pwa_test {id, name}`);
+                const result = runQuery(`?[id] := *pwa_test{id}`);
+                if (result.rows?.length === 1) {
+                    addTest('Delete data', true);
+                } else {
+                    addTest('Delete data', false, 'Delete did not work');
+                }
+            } catch (e) {
+                addTest('Delete data', false, e.message);
+            }
+            
+            // Test 7: List relations
+            try {
+                const result = runQuery('::relations');
+                if (result.rows?.some(r => r[0] === 'pwa_test')) {
+                    addTest('List relations', true);
+                } else {
+                    addTest('List relations', false, 'pwa_test not found');
+                }
+            } catch (e) {
+                addTest('List relations', false, e.message);
+            }
+            
+            // Test 8: Inline data query (no stored relation)
+            try {
+                const result = runQuery(`?[x, y] <- [[1, 'a'], [2, 'b']]`);
+                if (result.rows?.length === 2) {
+                    addTest('Inline data query', true);
+                } else {
+                    addTest('Inline data query', false, 'Unexpected result');
+                }
+            } catch (e) {
+                addTest('Inline data query', false, e.message);
+            }
+            
+            // Test 9: Aggregation
+            try {
+                runQuery(`?[id, name] <- [[3, 'Test3']] :put pwa_test {id => name}`);
+                const result = runQuery(`?[count(id)] := *pwa_test{id}`);
+                if (result.rows?.[0]?.[0] === 2) {
+                    addTest('Aggregation (count)', true);
+                } else {
+                    addTest('Aggregation (count)', false, `Expected 2, got ${result.rows?.[0]?.[0]}`);
+                }
+            } catch (e) {
+                addTest('Aggregation (count)', false, e.message);
+            }
+            
+            // Test 10: Error handling
+            try {
+                runQuery('INVALID SYNTAX');
+                addTest('Error handling', false, 'Should have thrown');
+            } catch (e) {
+                addTest('Error handling (syntax error)', true);
+            }
+            
+            // Done
+            statusText.textContent = results.failed === 0 ? 
+                'All tests passed! ✓' : 
+                `${results.failed} test(s) failed`;
+            runBtn.disabled = false;
+            
+            // Output JSON for verification
+            console.log('Test Results:', JSON.stringify({
+                timestamp: new Date().toISOString(),
+                environment: 'browser-wasm',
+                summary: { total: results.passed + results.failed, passed: results.passed, failed: results.failed },
+                tests: results.tests
+            }, null, 2));
+        }
+        
+        // Event listeners
+        runBtn.addEventListener('click', runTests);
+        
+        // Initialize
+        init();
+    </script>
+</body>
+</html>
