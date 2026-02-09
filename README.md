@@ -4,6 +4,100 @@ AI Agent Skill for CozoDB integration - enabling seamless database connections i
 
 [日本語ドキュメント](README.ja.md)
 
+---
+
+## How to Use This Skill
+
+This repository is an **AI Agent Skill** - a modular package that extends your AI agent's capabilities for CozoDB database operations.
+
+### Installation Options
+
+#### Option 1: Direct Clone (Recommended for Development)
+
+Clone directly into your AI agent's skills directory:
+
+```bash
+# For Gemini CLI / Claude Desktop
+cd ~/.gemini/antigravity/skills  # or your agent's skills path
+git clone https://github.com/your-org/skills-cozodb-connector.git cozodb
+```
+
+Your agent will now recognize the skill via `SKILL.md`.
+
+#### Option 2: Symlink to Shared Package (Recommended for Multi-Project)
+
+Keep skill in a central location and symlink to projects:
+
+```bash
+# Clone to shared location
+cd ~/packages/skills
+git clone https://github.com/your-org/skills-cozodb-connector.git
+
+# Symlink to each project's skills directory
+cd ~/.gemini/antigravity/skills
+ln -s ~/packages/skills/skills-cozodb-connector cozodb
+
+# Or for Windows (PowerShell as Admin)
+New-Item -ItemType SymbolicLink -Path "cozodb" -Target "C:\packages\skills\skills-cozodb-connector"
+```
+
+**Pros**: Single source of truth, easy updates across projects
+**Cons**: Symlink management, potential path issues on Windows
+
+#### Option 3: Git Submodule (Recommended for Teams)
+
+Add as a submodule in your project:
+
+```bash
+cd your-project
+git submodule add https://github.com/your-org/skills-cozodb-connector.git .agent/skills/cozodb
+```
+
+**Pros**: Version-pinned, reproducible builds
+**Cons**: Submodule complexity
+
+#### Option 4: npm Package (Experimental)
+
+```bash
+npm install @your-org/cozodb-skill --save-dev
+# Then symlink node_modules/@your-org/cozodb-skill to skills directory
+```
+
+### Directory Structure
+
+After installation, your agent sees:
+
+```
+skills/
+└── cozodb/
+    ├── SKILL.md           # Entry point (agent reads this first)
+    ├── references/        # Loaded on-demand by agent
+    │   ├── datalog-syntax.md
+    │   ├── storage-engines.md
+    │   └── ...
+    └── scripts/           # Executable helpers
+        ├── cozo-wrapper.js
+        ├── memory-monitor.js
+        └── sync-helper.js
+```
+
+### Triggering the Skill
+
+The skill activates when you ask your AI agent about:
+
+- "Set up CozoDB in my Node.js project"
+- "Create a PWA with offline database"
+- "Write a Datalog query to find..."
+- "Help me with CozoDB WASM"
+
+### Customizing for Your Project
+
+1. **Fork this repo** for project-specific modifications
+2. **Edit SKILL.md** to add your schema definitions
+3. **Add references/** for your domain-specific Datalog patterns
+
+---
+
 ## Overview
 
 CozoDB is an embedded Datalog database with graph query capabilities. This skill provides:
