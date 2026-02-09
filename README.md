@@ -98,6 +98,97 @@ The skill activates when you ask your AI agent about:
 
 ---
 
+## Complete Setup Guide (Skill + MCP Server)
+
+For full AI Agent integration with CozoDB, install both the **Skill** (knowledge) and **MCP Server** (connection):
+
+### Step 1: Install the Skill
+
+```bash
+# Clone to your agent's skills directory
+cd ~/.gemini/antigravity/skills  # or your skills path
+git clone https://github.com/AtsushiYamashita/skills-cozodb-connector.git cozodb
+```
+
+### Step 2: Install the MCP Server
+
+```bash
+# Clone and build
+git clone https://github.com/AtsushiYamashita/mcp-cozodb.git
+cd mcp-cozodb
+npm install
+npm run build
+```
+
+### Step 3: Configure Your AI Agent
+
+**For Claude Desktop** (`claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "cozodb": {
+      "command": "node",
+      "args": ["/path/to/mcp-cozodb/dist/index.js"],
+      "env": {
+        "COZO_ENGINE": "sqlite",
+        "COZO_PATH": "./my-database.db"
+      }
+    }
+  }
+}
+```
+
+**For Gemini CLI** (MCP config):
+
+```json
+{
+  "cozodb": {
+    "command": "node",
+    "args": ["D:/project/mcp-cozodb/dist/index.js"],
+    "env": {
+      "COZO_ENGINE": "mem"
+    }
+  }
+}
+```
+
+### Step 4: Verify
+
+Ask your AI agent:
+
+> "List all CozoDB relations"
+
+The agent should:
+
+1. Read the Skill for Datalog knowledge
+2. Use `cozo_list_relations` tool from MCP server
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  AI Agent (Claude / Gemini)                             │
+├─────────────────────────┬───────────────────────────────┤
+│  Skill (Knowledge)      │  MCP Server (Connection)      │
+│  ├─ SKILL.md            │  ├─ cozo_query               │
+│  ├─ references/         │  ├─ cozo_list_relations      │
+│  │  ├─ datalog-syntax   │  ├─ cozo_describe_relation   │
+│  │  └─ storage-engines  │  ├─ cozo_create_relation     │
+│  └─ scripts/            │  ├─ cozo_put                 │
+│                         │  ├─ cozo_remove              │
+│                         │  └─ cozo_drop_relation       │
+└─────────────────────────┴───────────────────────────────┘
+                          │
+                          ▼
+                   ┌──────────────┐
+                   │   CozoDB     │
+                   │ (embedded)   │
+                   └──────────────┘
+```
+
+---
+
 ## Overview
 
 CozoDB is an embedded Datalog database with graph query capabilities. This skill provides:
