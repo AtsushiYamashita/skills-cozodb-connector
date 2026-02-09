@@ -16,6 +16,11 @@ CozoDB is an embedded Datalog database with graph query capabilities. This skill
 
 ## Scope
 
+### ⚠️ Critical: WASM Volatility
+
+> **Browser WASM data is VOLATILE. Data is lost on page refresh.**
+> Always use `sync-helper.js` to sync data to your server.
+
 ### ✅ Can Do
 
 - Embedded database for small-to-medium apps (single process)
@@ -23,13 +28,14 @@ CozoDB is an embedded Datalog database with graph query capabilities. This skill
 - Offline-first PWA with local data storage
 - Multi-tenant isolation (separate DB per user)
 - Full-text search and HNSW vector indexes
+- **Memory usage monitoring with server offload** (NEW)
+- **Bidirectional data sync** (NEW)
 
 ### ❌ Cannot Do
 
 - Distributed transactions across multiple servers
-- Real-time sync between clients (requires custom implementation)
+- Real-time sync between clients (requires WebSocket etc.)
 - Direct SQL queries (Datalog only)
-- Browser data larger than available memory (WASM limitation)
 
 ### ⚠️ Not Suitable For
 
@@ -111,10 +117,12 @@ npx serve examples/browser-spike -l 3457
 
 ## Scripts
 
-| Script                    | Purpose                                   |
-| ------------------------- | ----------------------------------------- |
-| `scripts/cozo-errors.js`  | i18n error codes + security validation    |
-| `scripts/cozo-wrapper.js` | Functional wrapper + multi-tenant manager |
+| Script                      | Purpose                                            |
+| --------------------------- | -------------------------------------------------- |
+| `scripts/cozo-errors.js`    | i18n error codes + security validation             |
+| `scripts/cozo-wrapper.js`   | Functional wrapper + multi-tenant manager          |
+| `scripts/memory-monitor.js` | Memory tracking + overflow detection + offload     |
+| `scripts/sync-helper.js`    | Bidirectional sync + auto-sync (blur/beforeunload) |
 
 ## Security
 
