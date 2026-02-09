@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Journey 2: PWA Notes App</title>
+    <style>
+        :root { --bg: #0f172a; --surface: #1e293b; --text: #e2e8f0; --primary: #3b82f6; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: system-ui; background: var(--bg); color: var(--text); padding: 20px; }
+        .container { max-width: 600px; margin: 0 auto; }
+        h1 { text-align: center; margin-bottom: 20px; }
+        .card { background: var(--surface); border-radius: 10px; padding: 15px; margin-bottom: 15px; }
+        input, textarea { width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid var(--primary); border-radius: 5px; background: var(--bg); color: var(--text); }
+        textarea { min-height: 100px; }
+        button { padding: 10px 20px; background: var(--primary); color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:disabled { opacity: 0.5; }
+        .note { background: var(--surface); border-radius: 8px; padding: 15px; margin-bottom: 10px; }
+        .note-title { font-weight: bold; margin-bottom: 5px; }
+        .note-content { opacity: 0.8; font-size: 0.9rem; }
+        .status { text-align: center; padding: 10px; border-radius: 5px; margin-bottom: 15px; }
+        .status.loading { background: #f59e0b33; }
+        .status.ready { background: #10b98133; }
+        .status.error { background: #ef444433; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📝 PWA Notes App</h1>
+        <div class="status loading" id="status">Loading CozoDB...</div>
+        
+        <div class="card">
+            <h3>Add Note</h3>
+            <input type="text" id="noteTitle" placeholder="Title">
+            <textarea id="noteContent" placeholder="Content"></textarea>
+            <button id="addBtn" disabled>Add Note</button>
+        </div>
+        
+        <div class="card">
+            <h3>Notes</h3>
+            <div id="noteList">Loading...</div>
+        </div>
+        
+        <div class="card">
+            <h3>Persistence</h3>
+            <button id="saveBtn" disabled>Save to IndexedDB</button>
+            <button id="loadBtn" disabled>Load from IndexedDB</button>
+            <button id="clearBtn" disabled>Clear Data</button>
+            <p style="margin-top: 10px; font-size: 0.85rem; opacity: 0.7;">
+                Note: CozoDB WASM is in-memory only. Use Save/Load for persistence.
+            </p>
+        </div>
+    </div>
+
+    <script type="module">
+        // ============================================
+        // Pure Functions (No Side Effects)
+        // ============================================
+        
+        const validateNote = (title, content) => ({
+            valid: title.length >= 1 && content.length >= 1,
+            errors: [
+                ...(title.length < 1 ? ['Title required'] : []),
+                ...(content.length < 1 ? ['Content required'] : [])
+            ]
+        });
+        
+        const transformNoteRow = ([id, title, content, createdAt]) => 
+            Object.freeze({ id, title, content, createdAt });
+        
+        const generateNoteId = () => Date.now();
+        
+        const buildNoteHtml = (note) => `
+            <div class="note" data-id="${note.id}">
+                <div class="note-title">${escapeHtml(note.title)}</div>
+                <div class="note-content">${escapeHtml(note.content)}</div>
+            </div>
+        `;
+        
+        const escapeHtml = (str) => str
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+        
+        // ============================================
+        // Database Layer (Isolated Side Effects)
+        // ============================================
+        
+        let db = null;
+        
+        const runQuery = (query, params = {}) => {
+            const result = db.run(query, JSON.stringify(params));
+            const parsed = JSON.parse(result);
+            if (!parsed.ok) throw new Error(parsed.message);
+            return parsed.rows || [];
+        };
+        
+        const initSchema = () => {
+            try {
+                runQuery(`:create notes { id: Int => title: String, content: String, created_at: Float }`);
+            } catch (e) {
+                // Schema exists
+            }
+        };
+        
+        const insertNote = (note) => {
+            const query = `?[id, title, content, created_at] <- [[${note.id}, '${note.title.replace(/'/g, "''")}', '${note.content.replace(/'/g, "''")}', ${note.createdAt}]]
+                           :put notes {id => title, content, created_at}`;
+            runQuery(query);
+        };
+        
+        const getAllNotes = () => {
+            const rows = runQuery(`?[id, title, content, created_at] := *notes{id, title, content, created_at} :order -created_at`);
+            return rows.map(transformNoteRow);
+        };
+        
+        // ============================================
+        // IndexedDB Persistence
+        // ============================================
+        
+        const openIDB = () => new Promise((resolve, reject) => {
+            const req = indexedDB.open('pwa_notes', 1);
+            req.onerror = () => reject(req.error);
+            req.onsuccess = () => resolve(req.result);
+            req.onupgradeneeded = (e) => {
+                e.target.result.createObjectStore('data');
+            };
+        });
+        
+        const saveToIDB = async () => {
+            const notes = getAllNotes();
+            const idb = await openIDB();
+            const tx = idb.transaction('data', 'readwrite');
+            tx.objectStore('data').put(notes, 'notes');
+            return new Promise(resolve => tx.oncomplete = resolve);
+        };
+        
+        const loadFromIDB = async () => {
+            const idb = await openIDB();
+            const tx = idb.transaction('data', 'readonly');
+            const req = tx.objectStore('data').get('notes');
+            return new Promise((resolve, reject) => {
+                req.onsuccess = () => resolve(req.result || []);
+                req.onerror = () => reject(req.error);
+            });
+        };
+        
+        const clearIDB = async () => {
+            const idb = await openIDB();
+            const tx = idb.transaction('data', 'readwrite');
+            tx.objectStore('data').clear();
+            return new Promise(resolve => tx.oncomplete = resolve);
+        };
+        
+        // ============================================
+        // UI Layer
+        // ============================================
+        
+        const status = document.getElementById('status');
+        const noteList = document.getElementById('noteList');
+        const titleInput = document.getElementById('noteTitle');
+        const contentInput = document.getElementById('noteContent');
+        const addBtn = document.getElementById('addBtn');
+        const saveBtn = document.getElementById('saveBtn');
+        const loadBtn = document.getElementById('loadBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        
+        const renderNotes = () => {
+            const notes = getAllNotes();
+            noteList.innerHTML = notes.length 
+                ? notes.map(buildNoteHtml).join('')
+                : '<p style="opacity: 0.5;">No notes yet</p>';
+        };
+        
+        const enableUI = () => {
+            [addBtn, saveBtn, loadBtn, clearBtn].forEach(b => b.disabled = false);
+        };
+        
+        // ============================================
+        // Event Handlers
+        // ============================================
+        
+        addBtn.addEventListener('click', async () => {
+            const title = titleInput.value.trim();
+            const content = contentInput.value.trim();
+            
+            const { valid, errors } = validateNote(title, content);
+            if (!valid) {
+                alert(errors.join('\n'));
+                return;
+            }
+            
+            const note = {
+                id: generateNoteId(),
+                title,
+                content,
+                createdAt: Date.now() / 1000
+            };
+            
+            insertNote(note);
+            renderNotes();
+            
+            titleInput.value = '';
+            contentInput.value = '';
+        });
+        
+        saveBtn.addEventListener('click', async () => {
+            await saveToIDB();
+            alert('Saved to IndexedDB!');
+        });
+        
+        loadBtn.addEventListener('click', async () => {
+            const notes = await loadFromIDB();
+            notes.forEach(insertNote);
+            renderNotes();
+            alert(`Loaded ${notes.length} notes`);
+        });
+        
+        clearBtn.addEventListener('click', async () => {
+            if (confirm('Clear all data?')) {
+                await clearIDB();
+                runQuery(':rm notes {}');
+                initSchema();
+                renderNotes();
+            }
+        });
+        
+        // ============================================
+        // Initialization
+        // ============================================
+        
+        async function init() {
+            try {
+                const cozo = await import('https://esm.sh/cozo-lib-wasm@0.7.6');
+                await cozo.default();
+                db = cozo.CozoDb.new();
+                
+                initSchema();
+                
+                // Check for saved data
+                const savedNotes = await loadFromIDB();
+                if (savedNotes.length > 0) {
+                    savedNotes.forEach(insertNote);
+                }
+                
+                renderNotes();
+                enableUI();
+                
+                status.className = 'status ready';
+                status.textContent = 'Ready';
+            } catch (e) {
+                status.className = 'status error';
+                status.textContent = `Error: ${e.message}`;
+                noteList.innerHTML = `<p style="color: #ef4444;">Failed to load CozoDB</p>`;
+            }
+        }
+        
+        init();
+    </script>
+</body>
+</html>
