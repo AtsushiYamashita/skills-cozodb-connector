@@ -156,6 +156,92 @@ path[to, n + 1] := path[mid, n], *edges{from: mid, to}, n < 100  # Limit depth
 - Increase system memory
 - Build index in batches
 
+## CozoDB-Specific Pitfalls
+
+### 1. `:create` vs `:ensure` — Schema Idempotency
+
+**Symptom**: `:create` throws error on second run
+
+**Cause**: `:create` fails if the relation already exists. This breaks restart/redeploy flows.
+
+**Solution**: Use `:ensure` for idempotent schema setup, or wrap `:create` in try/catch.
+
+```javascript
+// BAD: fails on second run
+await db.run(`:create users { id: Int => name: String }`);
+
+// GOOD: idempotent — creates only if missing
+await db.run(`?[id, name] <- [] :ensure users {id: Int => name: String}`);
+
+// or: wrap in try/catch
+try {
+  await db.run(`:create users { id: Int => name: String }`);
+} catch (e) {
+  /* relation exists, safe to ignore */
+}
+```
+
+### 2. Column Count Mismatch in `:put`
+
+**Symptom**: Cryptic error like `evaluation of query failed`
+
+**Cause**: Number of columns in data (`?[...]`) differs from `:put` field list
+
+```datalog
+# BAD: 3 columns in data, but :put expects 4 (id => name, email, age)
+?[id, name, email] <- [[1, 'Alice', 'alice@test.com']]
+:put users {id => name, email, age}
+
+# GOOD: match all fields exactly
+?[id, name, email, age] <- [[1, 'Alice', 'alice@test.com', 30]]
+:put users {id => name, email, age}
+```
+
+### 3. Null Handling
+
+**Symptom**: `null` values silently accepted but cause unexpected query behavior
+
+**Cause**: CozoDB treats `null` as a valid value distinct from "no value". Nulls are included in aggregations and comparisons may behave unexpectedly.
+
+**Solution**: Use `default` in schema definition. Filter nulls explicitly.
+
+```datalog
+# Schema with defaults prevents nulls
+:create items { id: Int => status: String default 'active' }
+
+# Explicit null filter in queries
+?[name] := *users{name, email}, email != null
+```
+
+### 4. Batch Insert Performance
+
+**Symptom**: Inserting 10,000+ rows is slow when done row-by-row
+
+**Cause**: Each `:put` is a separate transaction
+
+**Solution**: Batch rows into a single `:put` query. Aim for 1,000–5,000 rows per batch.
+
+```javascript
+// BAD: 10,000 separate queries
+for (const row of rows) {
+  await db.run(
+    `?[id, val] <- [[${row.id}, '${row.val}']] :put items {id => val}`,
+  );
+}
+
+// GOOD: single query with all rows
+const dataJson = JSON.stringify(rows.map((r) => [r.id, r.val]));
+await db.run(`?[id, val] <- ${dataJson} :put items {id => val}`);
+```
+
+### 5. WASM Is Not Thread-Safe
+
+**Symptom**: Corrupt data or crashes when using CozoDB WASM from Web Workers
+
+**Cause**: The WASM instance is not designed for concurrent access from multiple threads
+
+**Solution**: Use a single WASM instance per context. If using Web Workers, create one worker that owns the DB instance and communicate via `postMessage`.
+
 ## General Best Practices
 
 1. **Always handle errors**:
