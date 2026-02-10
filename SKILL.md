@@ -35,42 +35,30 @@ const sqliteDb = new CozoDb("sqlite", "./data.db");
 const rocksDb = new CozoDb("rocksdb", "./rocksdb-data");
 
 // Run Datalog query
-const result = await db.run(`
-    ?[greeting] <- [['Hello CozoDB!']]
-`);
+const result = await db.run(`?[greeting] <- [['Hello CozoDB!']]`);
 console.log(result.rows); // [['Hello CozoDB!']]
 ```
 
 ### Browser WASM
 
 ```javascript
-// Load from CDN (experimental - may have memory issues)
 import init, { CozoDb } from "cozo-lib-wasm";
 await init();
 const db = CozoDb.new();
-
-// Run query
 const result = JSON.parse(db.run("?[a] <- [[1]]"));
 ```
 
 > **Warning**: Browser WASM uses in-memory storage only. Data is lost on page reload.
-> For persistence, use the IndexedDB export/import pattern (see references/browser-wasm-setup.md).
+> See [browser-wasm-setup.md](references/browser-wasm-setup.md) for IndexedDB persistence patterns.
 
 ## Storage Backend Selection
 
-| Backend          | Persistence | Best For                   | Install                 |
-| ---------------- | ----------- | -------------------------- | ----------------------- |
-| **Memory**       | ❌          | Testing, temp calculations | Default                 |
-| **SQLite**       | ✅          | Portability, backups, PWA  | Built-in                |
-| **RocksDB**      | ✅          | Production servers         | May need Rust toolchain |
-| **Browser WASM** | ❌          | Client-side demos          | npm/CDN                 |
-
-Decision guide:
-
-- **Node.js production**: Use SQLite (simpler) or RocksDB (faster writes)
-- **Node.js testing**: Use Memory
-- **Browser PWA**: Use WASM + IndexedDB export/import PoC
-- **Cross-platform backup**: Export to SQLite format
+| Backend     | Persistence | Best For             | Install                 |
+| ----------- | ----------- | -------------------- | ----------------------- |
+| **Memory**  | ❌          | Testing, temp work   | Default                 |
+| **SQLite**  | ✅          | Portability, backups | Built-in                |
+| **RocksDB** | ✅          | Production servers   | May need Rust toolchain |
+| **WASM**    | ❌          | Client-side demos    | npm/CDN                 |
 
 ## Datalog Query Patterns
 
@@ -86,90 +74,43 @@ Decision guide:
 }
 ```
 
-Keys before `=>`, values after. Keys form the primary composite key.
+Keys before `=>`, values after. Keys form the composite primary key.
 
 ### CRUD Operations
 
 ```datalog
-# Insert (Put)
+# Insert / Update (Put)
 ?[id, name, email, age] <- [[1, 'Alice', 'alice@example.com', 30]]
 :put users {id => name, email, age}
 
-# Query
-?[name, age] := *users{name, age}
-
 # Query with filter
 ?[name] := *users{name, age}, age > 25
-
-# Update (same as insert with existing key)
-?[id, name, email, age] <- [[1, 'Alice Smith', 'alice@example.com', 31]]
-:put users {id => name, email, age}
 
 # Delete
 ?[id, name, email] <- [[1, 'Alice Smith', 'alice@example.com']]
 :rm users {id, name, email}
 ```
 
-### Joins (Automatic via Shared Variables)
+### Joins and Graph Traversal
 
 ```datalog
-# Implicit join: shared variable 'user_id' links relations
+# Join: shared variable 'user_id' links relations
 ?[user_name, order_total] :=
     *users{id: user_id, name: user_name},
     *orders{user_id, total: order_total}
-```
 
-### Graph Traversal (Recursive Queries)
-
-```datalog
-# Transitive closure: find all reachable nodes
+# Recursive: find all reachable nodes from node 1
 reachable[to] := *follows{from: 1, to}
 reachable[to] := reachable[mid], *follows{from: mid, to}
 ?[name] := reachable[id], *users{id, name}
 ```
 
-### Vector Search (HNSW)
-
-```datalog
-# Create HNSW index
-::hnsw create articles:embedding_idx {
-    fields: [embedding],
-    dim: 1536,
-    m: 16,
-    ef_construction: 200,
-    distance: cosine
-}
-
-# Semantic search
-?[id, content, score] :=
-    ~articles:embedding_idx{id | query: $query_vec, k: 5, distance: score},
-    *articles{id, content}
-```
-
-### Aggregations
-
-```datalog
-?[department, count(name), mean(age)] :=
-    *users{name, age, department}
-```
-
-### Ordering and Limiting
-
-```datalog
-?[name, age] := *users{name, age}
-:order -age     # Descending
-:limit 10
-```
-
 ### Parameters
 
 ```javascript
-await db.run(
-  `
-    ?[name] := *users{name, department}, department == $dept
-`,
-  { dept: "Engineering" },
-);
+await db.run(`?[name] := *users{name, department}, department == $dept`, {
+  dept: "Engineering",
+});
 ```
 
 ## System Commands
@@ -177,7 +118,6 @@ await db.run(
 ```datalog
 ::relations           # List all relations
 ::columns users       # Show relation schema
-::indices users       # Show indices
 ::explain <query>     # Query execution plan
 ```
 
@@ -185,15 +125,17 @@ await db.run(
 
 For detailed guidance, see:
 
-- [references/nodejs-setup.md](references/nodejs-setup.md) - Node.js installation and backend configuration
-- [references/browser-wasm-setup.md](references/browser-wasm-setup.md) - Browser WASM integration with IndexedDB persistence
-- [references/datalog-syntax.md](references/datalog-syntax.md) - Complete Datalog query reference
-- [references/storage-engines.md](references/storage-engines.md) - Backend comparison and tuning
-- [references/edge-cases.md](references/edge-cases.md) - Known issues and workarounds
+- [references/datalog-syntax.md](references/datalog-syntax.md) — Complete Datalog query reference (HNSW, aggregations, built-in functions)
+- [references/nodejs-setup.md](references/nodejs-setup.md) — Node.js installation and backend configuration
+- [references/browser-wasm-setup.md](references/browser-wasm-setup.md) — Browser WASM with IndexedDB persistence
+- [references/storage-engines.md](references/storage-engines.md) — Backend comparison and tuning
+- [references/edge-cases.md](references/edge-cases.md) — Known issues and workarounds
+- [references/lessons-learned.md](references/lessons-learned.md) — Development failure log and takeaways
 
 ## Examples
 
 Working examples are in `examples/`:
 
-- `nodejs-spike/` - Node.js with Memory, SQLite, RocksDB backends
-- `browser-spike/` - Browser WASM with IndexedDB persistence PoC
+- `nodejs-spike/` — Node.js with Memory, SQLite, RocksDB backends
+- `browser-spike/` — Browser WASM with IndexedDB persistence PoC
+- `journeys/` — End-to-end integration patterns (REST API, multi-tenant, sync)
