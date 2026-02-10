@@ -1,0 +1,10 @@
+{
+  "name": "skills-cozodb-connector",
+  "version": "1.0.0",
+  "description": "CozoDB integration skill for AI agents",
+  "private": true,
+  "scripts": {
+    "test": "node --test scripts/__tests__/*.test.js"
+  },
+  "license": "MIT"
+}
