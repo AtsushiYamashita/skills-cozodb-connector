@@ -4,7 +4,15 @@
   "description": "CozoDB integration skill for AI agents",
   "private": true,
   "scripts": {
-    "test": "node --test scripts/__tests__/*.test.js"
+    "test": "node --test scripts/__tests__/*.test.js",
+    "lint": "eslint scripts/",
+    "prepublishOnly": "npm test",
+    "release": "standard-version"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "eslint": "^9.0.0",
+    "standard-version": "^9.5.0"
   },
   "license": "MIT"
 }
