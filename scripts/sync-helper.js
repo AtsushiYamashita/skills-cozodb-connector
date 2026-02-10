@@ -353,10 +353,3 @@ if (typeof window !== 'undefined') {
     };
 }
 
-export {
-    createSyncManager,
-    createSyncRecord,
-    resolveConflict,
-    isLocalNewer,
-    generateSyncId
-};

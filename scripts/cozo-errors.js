@@ -267,10 +267,3 @@ if (typeof window !== 'undefined') {
     };
 }
 
-export { 
-    ErrorCodes, 
-    DefaultMessages, 
-    CozoError, 
-    parseNativeError,
-    SecurityValidator 
-};

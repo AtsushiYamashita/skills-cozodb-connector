@@ -221,12 +221,3 @@ if (typeof window !== 'undefined') {
     };
 }
 
-export {
-    createMemoryMonitor,
-    createMemoryState,
-    estimateDataSize,
-    calculateUsagePercent,
-    getMemoryStatus,
-    warnVolatility,
-    DEFAULT_OPTIONS
-};

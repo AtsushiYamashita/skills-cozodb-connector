@@ -340,12 +340,3 @@ if (typeof window !== 'undefined') {
     };
 }
 
-export {
-    buildCreateQuery,
-    buildPutQuery,
-    buildSelectQuery,
-    buildDeleteQuery,
-    createExecutor,
-    createTenantManager,
-    createRepository
-};
