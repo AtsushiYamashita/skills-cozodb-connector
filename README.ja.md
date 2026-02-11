@@ -18,6 +18,15 @@ cd mcp-cozodb && npm install && npm run build
 # 3. エージェント設定 (docs/SETUP.ja.md参照)
 ```
 
+## 開発環境セットアップ
+
+```bash
+# クローンして開発環境をセットアップ
+git clone https://github.com/AtsushiYamashita/skills-cozodb-connector.git
+cd skills-cozodb-connector
+npm run setup  # 依存関係インストール、lint、テスト実行
+```
+
 ## 提供内容
 
 | コンポーネント                  | 目的                                      |

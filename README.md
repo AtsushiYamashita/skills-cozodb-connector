@@ -18,6 +18,15 @@ cd mcp-cozodb && npm install && npm run build
 # 3. Configure agent (see docs/SETUP.md)
 ```
 
+## Development Setup
+
+```bash
+# Clone and setup development environment
+git clone https://github.com/AtsushiYamashita/skills-cozodb-connector.git
+cd skills-cozodb-connector
+npm run setup  # Installs deps, runs lint and tests
+```
+
 ## What This Provides
 
 | Component                      | Purpose                                    |
