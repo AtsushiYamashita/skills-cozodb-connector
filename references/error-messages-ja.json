@@ -1,0 +1,25 @@
+{
+  "COZO_CONN_INIT_FAILED": "CozoDB データベースの初期化に失敗しました",
+  "COZO_CONN_WASM_LOAD_FAILED": "CozoDB WASM モジュールの読み込みに失敗しました",
+  "COZO_CONN_BACKEND_UNAVAILABLE": "要求されたストレージバックエンドが利用できません",
+  
+  "COZO_QUERY_SYNTAX_ERROR": "Datalog クエリの構文エラー",
+  "COZO_QUERY_EXECUTION_FAILED": "クエリの実行に失敗しました",
+  "COZO_QUERY_TIMEOUT": "クエリ実行がタイムアウトしました",
+  "COZO_QUERY_INVALID_PARAMS": "無効なクエリパラメーター",
+  
+  "COZO_SCHEMA_RELATION_EXISTS": "リレーションが既に存在します",
+  "COZO_SCHEMA_RELATION_NOT_FOUND": "リレーションが見つかりません",
+  "COZO_SCHEMA_COLUMN_MISMATCH": "カラム定義が一致しません",
+  "COZO_SCHEMA_TYPE_ERROR": "データ型エラー",
+  
+  "COZO_DATA_KEY_VIOLATION": "主キー制約違反",
+  "COZO_DATA_CONSTRAINT_ERROR": "データ制約エラー",
+  "COZO_DATA_NOT_FOUND": "データが見つかりません",
+  
+  "COZO_SEC_INVALID_INPUT": "無効な入力を検出しました",
+  "COZO_SEC_QUERY_TOO_LONG": "クエリが最大長を超えています",
+  "COZO_SEC_PARAM_INJECTION": "安全でない可能性のあるパラメーターを検出しました",
+  
+  "COZO_UNKNOWN_ERROR": "不明なエラーが発生しました"
+}
