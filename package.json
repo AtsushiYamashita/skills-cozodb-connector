@@ -7,13 +7,12 @@
     "test": "node --test scripts/__tests__/*.test.js",
     "lint": "eslint scripts/",
     "setup": "npm ci && npm run lint && npm test",
-    "prepublishOnly": "npm test",
     "release": "standard-version"
   },
   "devDependencies": {
-    "@eslint/js": "^9.0.0",
-    "eslint": "^9.0.0",
-    "standard-version": "^9.5.0"
+    "@eslint/js": "10.0.1",
+    "eslint": "10.0.0",
+    "standard-version": "9.5.0"
   },
   "license": "MIT"
 }
