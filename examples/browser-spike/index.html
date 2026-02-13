@@ -304,13 +304,68 @@
       </div>
 
       <footer>
-        CozoDB WASM Spike • PWA Test Environment<br />
+        CozoDB WASM Spike &bull; PWA Test Environment<br />
         Data is stored in memory (not persistent across page reloads)
       </footer>
     </div>
 
     <script type="module">
-      // Log helper
+      // ================================================
+      // Wrapper: createExecutor (mirrors scripts/cozo-wrapper.js)
+      //
+      // CozoDB has two JavaScript embeddings with different APIs:
+      //
+      //   cozo-node (Node.js native addon):
+      //     run(script: string, params?: object): Promise<object>
+      //     - Async, params as plain object, returns parsed object
+      //
+      //   cozo-lib-wasm (browser WASM):
+      //     run(script: string, params: string): string
+      //     - Synchronous, params as JSON string, returns JSON string
+      //
+      // createExecutor normalises both into a single async interface:
+      //     run(query, params?) => Promise<{ ok, headers, rows, message }>
+      // ================================================
+      const createExecutor = (backend, options = {}) => {
+        const { isWasm = false } = options;
+
+        /**
+         * Execute raw Datalog query against the backend.
+         * Normalises WASM (sync, JSON strings) and Node.js (async, objects)
+         * into a single async interface returning a parsed result object.
+         */
+        const run = async (query, params = {}) => {
+          if (isWasm) {
+            // WASM API: run(script: string, params: string): string
+            const result = backend.run(query, JSON.stringify(params));
+            return JSON.parse(result);
+          } else {
+            // Node.js API: run(script: string, params?: object): Promise<object>
+            return backend.run(query, params);
+          }
+        };
+
+        /**
+         * Execute query and return { headers, rows }.
+         * Throws on error — caller handles display.
+         */
+        const query = async (queryStr, params = {}) => {
+          const result = await run(queryStr, params);
+          if (!result.ok) {
+            throw new Error(result.message || result.display || "Query failed");
+          }
+          return {
+            headers: result.headers || [],
+            rows: result.rows || [],
+          };
+        };
+
+        return Object.freeze({ run, query });
+      };
+
+      // ================================================
+      // UI helpers
+      // ================================================
       const logEl = document.getElementById("log");
       function log(message, type = "info") {
         const time = new Date().toLocaleTimeString();
@@ -326,7 +381,6 @@
             </div>` + logEl.innerHTML;
       }
 
-      // UI Elements
       const statusIndicator = document.getElementById("statusIndicator");
       const statusText = document.getElementById("statusText");
       const queryInput = document.getElementById("queryInput");
@@ -335,90 +389,93 @@
       const resultsEl = document.getElementById("results");
       const exampleBtns = document.querySelectorAll(".example-btn");
 
-      let db = null;
+      /** @type {ReturnType<typeof createExecutor> | null} */
+      let executor = null;
 
-      // Load CozoDB WASM
+      // ================================================
+      // Initialise CozoDB WASM through the wrapper
+      // ================================================
       async function initCozoDB() {
         try {
-          log("Loading CozoDB WASM module...");
+          log("Loading CozoDB WASM module from CDN...");
 
-          // Dynamic import of CozoDB WASM
-          // Option 1: From local build
-          // const { CozoDb } = await import('./cozo_wasm.js');
-
-          // Option 2: From CDN (esm.sh / unpkg / jsdelivr)
           const cozo = await import("https://esm.sh/cozo-lib-wasm@0.7.6");
 
-          log("Initializing WASM...");
-          await cozo.default(); // Initialize WASM
+          log("Initializing WASM binary...");
+          await cozo.default(); // load & compile .wasm
 
           log("Creating in-memory database...");
-          db = cozo.CozoDb.new();
+          const rawDb = cozo.CozoDb.new();
+
+          // Wrap the raw WASM backend with createExecutor.
+          // This normalises the WASM-specific API:
+          //   - params serialised to JSON string automatically
+          //   - JSON string result parsed automatically
+          //   - Uniform async interface matching Node.js backend
+          executor = createExecutor(rawDb, { isWasm: true });
 
           statusIndicator.className = "status-indicator ready";
-          statusText.textContent = "CozoDB Ready (In-Memory)";
+          statusText.textContent = "CozoDB Ready (In-Memory, via Wrapper)";
           runBtn.disabled = false;
 
-          log("CozoDB WASM initialized successfully!", "success");
+          log("CozoDB WASM initialised via createExecutor({ isWasm: true })", "success");
         } catch (error) {
           statusIndicator.className = "status-indicator error";
           statusText.textContent = "Failed to load CozoDB";
-          log(`Error: ${error.message}`, "error");
+          log(`Init error: ${error.message}`, "error");
           console.error("CozoDB init error:", error);
 
-          resultsEl.textContent = `Failed to initialize CozoDB WASM.\n\nError: ${error.message}\n\nPossible issues:\n1. CORS policy preventing WASM load\n2. Network connectivity issues\n3. Browser doesn't support WASM\n\nSee console for details.`;
+          resultsEl.textContent =
+            `Failed to initialise CozoDB WASM.\n\n` +
+            `Error: ${error.message}\n\n` +
+            `Possible causes:\n` +
+            `1. CORS policy blocking WASM download\n` +
+            `2. Network connectivity issue\n` +
+            `3. Browser does not support WebAssembly\n\n` +
+            `Open DevTools console for details.`;
           resultsEl.className = "results error";
         }
       }
 
-      // Run query
+      // ================================================
+      // Run query through the wrapper — never call db.run() directly
+      // ================================================
       async function runQuery() {
-        const query = queryInput.value.trim();
-        if (!query) return;
+        const queryStr = queryInput.value.trim();
+        if (!queryStr) return;
 
-        if (!db) {
-          resultsEl.textContent = "Database not initialized";
+        if (!executor) {
+          resultsEl.textContent = "Database not initialised. Check the log above.";
           resultsEl.className = "results error";
           return;
         }
 
-        log(`Running: ${query.substring(0, 50)}...`);
+        log(`Running: ${queryStr.substring(0, 60)}${queryStr.length > 60 ? "…" : ""}`);
 
         try {
-          const startTime = performance.now();
-          const result = db.run(query);
-          const elapsed = (performance.now() - startTime).toFixed(2);
+          const t0 = performance.now();
+          const { headers, rows } = await executor.query(queryStr);
+          const elapsed = (performance.now() - t0).toFixed(2);
 
-          const parsed = JSON.parse(result);
-
-          if (parsed.ok) {
-            resultsEl.className = "results success";
-            const headers = parsed.headers || [];
-            const rows = parsed.rows || [];
-
-            resultsEl.textContent =
-              `✓ Query completed in ${elapsed}ms\n\n` +
-              `Headers: ${JSON.stringify(headers)}\n\n` +
-              `Rows (${rows.length}):\n` +
-              JSON.stringify(rows, null, 2);
-            log(
-              `Query success: ${rows.length} rows in ${elapsed}ms`,
-              "success",
-            );
-          } else {
-            throw new Error(
-              parsed.message || parsed.display || "Unknown error",
-            );
-          }
+          resultsEl.className = "results success";
+          resultsEl.textContent =
+            `✓ Completed in ${elapsed} ms\n\n` +
+            `Headers: ${JSON.stringify(headers)}\n\n` +
+            `Rows (${rows.length}):\n` +
+            JSON.stringify(rows, null, 2);
+          log(`Success: ${rows.length} rows in ${elapsed} ms`, "success");
         } catch (error) {
           resultsEl.className = "results error";
-          resultsEl.textContent = `Error: ${error.message}\n\nQuery: ${query}`;
-          log(`Query error: ${error.message}`, "error");
-          console.error("Query execution error:", error);
+          resultsEl.textContent =
+            `Error: ${error.message}\n\nQuery:\n${queryStr}`;
+          log(`Error: ${error.message}`, "error");
+          console.error("Query error:", error);
         }
       }
 
+      // ================================================
       // Event listeners
+      // ================================================
       runBtn.addEventListener("click", runQuery);
 
       clearBtn.addEventListener("click", () => {
@@ -439,7 +496,7 @@
         });
       });
 
-      // Initialize
+      // Boot
       initCozoDB();
     </script>
   </body>
