@@ -91,6 +91,32 @@ db.run(`?[x] <- [[1], [2]]`, "{}"); // Note: 2nd param required
 | `scripts/memory-monitor.js` | WASM memory tracking              |
 | `scripts/sync-helper.js`    | Bidirectional sync                |
 
+## Versioning
+
+This project follows [Semantic Versioning 2.0.0](https://semver.org/):
+
+- **MAJOR** version for incompatible API changes
+- **MINOR** version for backward-compatible functionality additions
+- **PATCH** version for backward-compatible bug fixes
+
+For breaking changes, see [docs/MIGRATION.md](docs/MIGRATION.md).
+
+## Performance
+
+Wrapper overhead benchmark (Node.js 24):
+
+- **Executor**: ~2-3ms per query (includes mock latency)
+- **Memory monitor**: <1ms overhead
+- **Overall impact**: Minimal
+
+Run benchmarks: `node scripts/benchmark.js`
+
+For full CozoDB performance data, see [CozoDB benchmarks](https://github.com/cozodb/cozo#performance).
+
+## Support
+
+See [SUPPORT.md](SUPPORT.md) for how to get help.
+
 ## License
 
 MIT
