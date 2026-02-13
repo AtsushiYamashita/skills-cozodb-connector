@@ -393,22 +393,28 @@
 
           if (parsed.ok) {
             resultsEl.className = "results success";
+            const headers = parsed.headers || [];
+            const rows = parsed.rows || [];
+
             resultsEl.textContent =
               `✓ Query completed in ${elapsed}ms\n\n` +
-              `Headers: ${JSON.stringify(parsed.headers)}\n\n` +
-              `Rows (${parsed.rows?.length || 0}):\n` +
-              JSON.stringify(parsed.rows, null, 2);
+              `Headers: ${JSON.stringify(headers)}\n\n` +
+              `Rows (${rows.length}):\n` +
+              JSON.stringify(rows, null, 2);
             log(
-              `Query success: ${parsed.rows?.length || 0} rows in ${elapsed}ms`,
+              `Query success: ${rows.length} rows in ${elapsed}ms`,
               "success",
             );
           } else {
-            throw new Error(parsed.message || "Unknown error");
+            throw new Error(
+              parsed.message || parsed.display || "Unknown error",
+            );
           }
         } catch (error) {
           resultsEl.className = "results error";
-          resultsEl.textContent = `Error: ${error.message}`;
+          resultsEl.textContent = `Error: ${error.message}\n\nQuery: ${query}`;
           log(`Query error: ${error.message}`, "error");
+          console.error("Query execution error:", error);
         }
       }
 
